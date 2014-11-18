@@ -1,0 +1,192 @@
+---
+title: 'Course Project: Writeup'
+author: "Borja Santos Zorrozúa"
+date: "Tuesday, November 18, 2014"
+output: html_document
+---
+
+# ASSIGNMENT
+
+**Background**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+
+**Data **
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+**What you should submit**
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+1. Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-).
+2. You should also apply your machine learning algorithm to the 20 test cases available in the test data above. Please submit your predictions in appropriate format to the programming assignment for automated grading. See the programming assignment for additional details. 
+
+**Reproducibility **
+
+Due to security concerns with the exchange of R code, your code will not be run during the evaluation by your classmates. Please be sure that if they download the repo, they will be able to view the compiled HTML version of your analysis. 
+
+# ANALYSIS
+
+## LOADING DATA.
+
+The training dataset:
+```{r,echo=FALSE}
+training.data <- read.csv("pml-training.csv",header=TRUE,na.strings=c("NA","#DIV/0!", ""))
+```
+In order to delete the variables with all NA's:
+```{r,echo=FALSE}
+training.data <- training.data[,colSums(is.na(training.data)) == 0]
+```
+Also there are several variables which are not related with the aim of our work and they are
+```{r}
+names(training.data)[c(1:7)]
+```
+So we have to drop them and finally the training dataset is :
+```{r,echo=FALSE}
+training.data <- training.data[,-c(1:7)]
+```
+```{r,echo=FALSE}
+str(training.data)
+dim(training.data)
+```
+
+We have to do the same with the testing data set, in order to have the same predictors in both sets:
+```{r,echo=FALSE}
+testing.data <- read.csv("pml-testing.csv",header=TRUE,na.strings=c("NA","#DIV/0!", ""))
+testing.data <- testing.data[,colSums(is.na(testing.data)) == 0] 
+testing.data <- testing.data[,-c(1:7)]
+```
+```{r}
+str(testing.data)
+dim(testing.data)
+```
+
+## BEFORE TO FIT THE MODELS.
+
+**Reproducibility**
+
+To facilitate the reproducibility we fix a seed. So anyone who wants to do the same analysis the only that he/she has to do is use the same seed. 
+```{r}
+set.seed(1985)
+```
+
+**How we fit the model**
+
+In this data set, the dependent variable is classe. It is a factor variable with six possible answers related with the performance of one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in 5 different fashions. Option A is related with the activity and the rest of options with different mistakes (1).
+
+**Cross-Validation**
+
+In order to have an idea about of the quality of the models we are going to use, we make use of CV. We split the data in three different sets. In the training set we make two subsamples: training.train and training.test. We build the different models using the training.train and evaluate their quality with the training.test. We only use the testing dataset with the best model.
+```{r,echo=FALSE}
+library(caret)
+inTrain <- createDataPartition(y=training.data$classe,p=0.75,list=FALSE)
+training.train <- training.data[inTrain,]
+training.test <- training.data[-inTrain,]
+```
+```{r}
+paste("Size of the training.train dataset:",dim(training.train)[1],dim(training.train)[2])
+paste("Size of the training.train dataset:",dim(training.test)[1],dim(training.test)[2])
+```
+
+**Out of sample error**
+
+We use 1-accuracy as the error measure. It is the proportion of the predictions which are not agree with the true values of the classe variable.
+
+## MODELS.
+
+We use this four models to find which provide the greatest accuracy in the classe variable prediction:
+
+1.  Trees.
+2.  Random forest.
+3.  Linear Disciminant Analysis (LDA).  
+4.  Näive-Bayes.
+
+### 1. TREES
+
+```{r}
+library(rpart)
+tree <- rpart(classe~., data=training.train,method="class")
+predict.tree <- predict(tree,type="class",newdata=training.test)
+cmatrix.tree <- confusionMatrix(predict.tree,training.test$classe)
+cmatrix.tree
+```
+
+### 2. RANDOM FOREST
+```{r}
+library(randomForest)
+rf <- randomForest(classe ~. , data=training.train, method="class")
+prediction.rf <- predict(rf, training.test, type = "class")
+cmatrix.rf <- confusionMatrix(prediction.rf, training.test$classe)
+```
+
+### 3. LDA
+```{r}
+lda <- train(classe~., data=training.train,method="lda")
+predict.lda <- predict(lda,newdata=training.test)          
+cmatrix.lda <- confusionMatrix(training.test$classe,predict.lda)
+```
+
+### 4. NÄIVE-BAYES
+```{r}
+library(klaR)
+nb <- NaiveBayes(as.factor(classe)~., data=training.train)
+predict.nb <- suppressWarnings(predict(nb,newdata=training.test))
+cmatrix.nb <- confusionMatrix(training.test$classe,predict.nb$class)
+```
+
+## SELECT THE BEST MODEL.
+
+According to the error measure we have chosen before, the best model will have the least 1-accuracy value:
+```{r,echo=FALSE}
+error.tree <- 1-round(as.numeric(cmatrix.tree$overall[1]),4)
+error.rf <- 1-round(as.numeric(cmatrix.rf$overall[1]),4)
+error.lda <- 1-round(as.numeric(cmatrix.lda$overall[1]),4)
+error.nb <- 1-round(as.numeric(cmatrix.nb$overall[1]),4)
+method <- c("Tree","Random forest","LDA","Naive-Bayes")
+error <- c(error.tree,error.rf,error.lda,error.nb)
+error.table <- matrix(0,ncol=4,nrow=2)
+error.table[1,] <- method
+error.table[2,] <- error
+```
+```{r}
+print(error.table)
+```
+So the best model is the random forest because they predict good more than 99% of the classe values in the training.test datase.
+```{r}
+cmatrix.rf
+```
+
+## FINAL STEP.
+
+The last thing we have to do is use the predictor built with the random forest and use it with the testing dataset.
+```{r}
+rf.test <- predict(rf,testing.data,type="class")
+rf.test
+```
+
+Submission to coursera.
+```{r}
+setwd("D:/Documents and Settings/UPV-EHU/Escritorio/Practical_Machine_Learning/Assignment1/answers")
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(rf.test)
+```
+
+## REFERENCES
+
+[1] Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
